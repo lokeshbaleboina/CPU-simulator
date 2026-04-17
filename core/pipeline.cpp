@@ -7,6 +7,7 @@ Pipeline::Pipeline(std::vector<Instruction> prog)
 // ---------------- STEP ----------------
 
 void Pipeline::step() {
+    cycles++;
 
     next_IF_ID = {};
     next_ID_EX = {};
@@ -15,10 +16,12 @@ void Pipeline::step() {
 
     writeback();
 
-    // 🔥 If stalling → freeze everything
+    // 🔥 Global memory stall control
     if (mem_stall_cycles > 0) {
         mem_stall_cycles--;
+        mem_stalls++;   // track memory stall cycles
 
+        // freeze entire pipeline
         next_IF_ID = IF_ID;
         next_ID_EX = ID_EX;
         next_EX_MEM = EX_MEM;
@@ -42,6 +45,7 @@ void Pipeline::step() {
     EX_MEM = next_EX_MEM;
     MEM_WB = next_MEM_WB;
 }
+
 // ---------------- STAGES ----------------
 
 void Pipeline::fetch() {
@@ -58,7 +62,7 @@ void Pipeline::decode() {
 
     if (!IF_ID.valid) return;
 
-    // 🔥 ONLY stall if dependency with ID_EX stage
+    // 🔥 Data hazard (RAW) → stall
     if (ID_EX.valid) {
         int prev_dest = ID_EX.dest;
 
@@ -66,7 +70,8 @@ void Pipeline::decode() {
             (prev_dest == IF_ID.inst.rs1 ||
              prev_dest == IF_ID.inst.rs2)) {
 
-            // 🚨 Stall needed (cannot forward yet)
+            data_stalls++;   // track data hazard
+
             next_ID_EX.valid = false;
 
             next_IF_ID = IF_ID; // freeze IF
@@ -91,7 +96,7 @@ void Pipeline::execute() {
     int op1 = ID_EX.op1;
     int op2 = ID_EX.op2;
 
-    // 🔥 Forwarding from EX/MEM stage
+    // 🔥 Forwarding from EX/MEM
     if (EX_MEM.valid && EX_MEM.dest != -1) {
         if (EX_MEM.dest == ID_EX.inst.rs1)
             op1 = EX_MEM.result;
@@ -100,7 +105,7 @@ void Pipeline::execute() {
             op2 = EX_MEM.result;
     }
 
-    // 🔥 Forwarding from MEM/WB stage
+    // 🔥 Forwarding from MEM/WB
     if (MEM_WB.valid && MEM_WB.dest != -1) {
         if (MEM_WB.dest == ID_EX.inst.rs1)
             op1 = MEM_WB.result;
@@ -109,20 +114,20 @@ void Pipeline::execute() {
             op2 = MEM_WB.result;
     }
 
-    // ALU operation
     switch (ID_EX.inst.type) {
         case ADD:
             next_EX_MEM.result = op1 + op2;
             break;
+
         case SUB:
             next_EX_MEM.result = op1 - op2;
             break;
+
         case BRANCH:
             if (op1 == 0) {
-                // branch taken → fix PC
-                pc = ID_EX.inst.rd;  // use rd as target
+                pc = ID_EX.inst.rd;
 
-                // 🔥 flush pipeline
+                // flush pipeline
                 next_IF_ID = {};
                 next_ID_EX = {};
             }
@@ -139,13 +144,13 @@ void Pipeline::memory() {
 
     if (!EX_MEM.valid) return;
 
-    // 🔥 Trigger stall ONLY once
+    // 🔥 Trigger memory stall ONCE
     if (EX_MEM.inst.type == LOAD && mem_stall_cycles == 0) {
-        mem_stall_cycles = 4;  // initiate stall
+        mem_stall_cycles = 4;  // simulate miss penalty
         return;
     }
 
-    // normal execution
+    // normal LOAD completion
     if (EX_MEM.inst.type == LOAD) {
         next_MEM_WB.result = EX_MEM.op1;
     }
@@ -155,6 +160,8 @@ void Pipeline::writeback() {
     if (!MEM_WB.valid) return;
 
     regFile.write(MEM_WB.dest, MEM_WB.result);
+
+    instructions++;  // completed instruction
 }
 
 // ---------------- UTIL ----------------
@@ -172,4 +179,21 @@ void Pipeline::printState() const {
     std::cout << "ID: " << (ID_EX.valid ? "INST" : "NOP") << " | ";
     std::cout << "EX: " << (EX_MEM.valid ? "INST" : "NOP") << " | ";
     std::cout << "MEM: " << (MEM_WB.valid ? "INST" : "NOP") << "\n";
+}
+
+void Pipeline::printStats() const {
+
+    std::cout << "\n===== PERFORMANCE STATS =====\n";
+
+    std::cout << "Total Cycles: " << cycles << "\n";
+    std::cout << "Instructions: " << instructions << "\n";
+
+    if (instructions > 0) {
+        std::cout << "IPC: " << (double)instructions / cycles << "\n";
+        std::cout << "CPI: " << (double)cycles / instructions << "\n";
+    }
+
+    std::cout << "\nStalls:\n";
+    std::cout << "Data Hazard Stalls: " << data_stalls << "\n";
+    std::cout << "Memory Stalls: " << mem_stalls << "\n";
 }

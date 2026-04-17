@@ -14,6 +14,6 @@ int main() {
         cpu.printState();
         cpu.step();
     }
-
+    cpu.printStats();
     return 0;
 } 
