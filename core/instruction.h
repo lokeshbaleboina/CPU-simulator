@@ -3,12 +3,7 @@
 enum InstType {
     ADD,
     SUB,
-    NOP
-};
-
-enum InstType {
-    ADD,
-    SUB,
+    LOAD,
     BRANCH,
     NOP
 };

@@ -15,11 +15,19 @@ public:
 private:
     std::vector<Instruction> program;
     int pc = 0;
+    
+    long long cycles = 0;
+    long long instructions = 0;
+
+    long long data_stalls = 0;
+    long long mem_stalls = 0;
 
     RegisterFile regFile;
 
     PipeReg IF_ID, ID_EX, EX_MEM, MEM_WB;
     PipeReg next_IF_ID, next_ID_EX, next_EX_MEM, next_MEM_WB;
+
+    int mem_stall_cycles = 0;
 
     void fetch();
     void decode();

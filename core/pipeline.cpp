@@ -8,26 +8,40 @@ Pipeline::Pipeline(std::vector<Instruction> prog)
 
 void Pipeline::step() {
 
-    // reset next state
     next_IF_ID = {};
     next_ID_EX = {};
     next_EX_MEM = {};
     next_MEM_WB = {};
 
-    // reverse order
     writeback();
+
+    // 🔥 If stalling → freeze everything
+    if (mem_stall_cycles > 0) {
+        mem_stall_cycles--;
+
+        next_IF_ID = IF_ID;
+        next_ID_EX = ID_EX;
+        next_EX_MEM = EX_MEM;
+        next_MEM_WB = MEM_WB;
+
+        IF_ID = next_IF_ID;
+        ID_EX = next_ID_EX;
+        EX_MEM = next_EX_MEM;
+        MEM_WB = next_MEM_WB;
+
+        return;
+    }
+
     memory();
     execute();
     decode();
     fetch();
 
-    // commit (clock edge)
     IF_ID = next_IF_ID;
     ID_EX = next_ID_EX;
     EX_MEM = next_EX_MEM;
     MEM_WB = next_MEM_WB;
 }
-
 // ---------------- STAGES ----------------
 
 void Pipeline::fetch() {
@@ -40,36 +54,29 @@ void Pipeline::fetch() {
 
 void Pipeline::decode() {
 
-    // Default: pass instruction forward
     next_ID_EX = IF_ID;
 
     if (!IF_ID.valid) return;
 
-    // 🔥 Check RAW hazard with previous instruction
+    // 🔥 ONLY stall if dependency with ID_EX stage
     if (ID_EX.valid) {
-
         int prev_dest = ID_EX.dest;
 
         if (prev_dest != -1 &&
             (prev_dest == IF_ID.inst.rs1 ||
              prev_dest == IF_ID.inst.rs2)) {
 
-            // 🚨 Hazard detected
-
-            // Insert bubble into EX stage
+            // 🚨 Stall needed (cannot forward yet)
             next_ID_EX.valid = false;
 
-            // Stall IF stage (freeze instruction)
-            next_IF_ID = IF_ID;
-
-            // Undo PC increment
+            next_IF_ID = IF_ID; // freeze IF
             pc--;
 
             return;
         }
     }
 
-    // Normal decode
+    // normal decode
     next_ID_EX.op1 = regFile.read(IF_ID.inst.rs1);
     next_ID_EX.op2 = regFile.read(IF_ID.inst.rs2);
     next_ID_EX.dest = IF_ID.inst.rd;
@@ -127,7 +134,21 @@ void Pipeline::execute() {
 }
 
 void Pipeline::memory() {
+
     next_MEM_WB = EX_MEM;
+
+    if (!EX_MEM.valid) return;
+
+    // 🔥 Trigger stall ONLY once
+    if (EX_MEM.inst.type == LOAD && mem_stall_cycles == 0) {
+        mem_stall_cycles = 4;  // initiate stall
+        return;
+    }
+
+    // normal execution
+    if (EX_MEM.inst.type == LOAD) {
+        next_MEM_WB.result = EX_MEM.op1;
+    }
 }
 
 void Pipeline::writeback() {

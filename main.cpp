@@ -3,10 +3,9 @@
 int main() {
 
     std::vector<Instruction> program = {
-        {ADD, 1, 2, 3},
-        {BRANCH, 5, 1, -1},  // if R1 == 0 → jump to inst 5
-        {ADD, 4, 5, 6},      // should be flushed if taken
-        {ADD, 7, 8, 9},
+        {LOAD, 1, 2, -1},
+        {ADD, 3, 1, 4},
+        {SUB, 5, 3, 6}
     };
 
     Pipeline cpu(program);
@@ -17,4 +16,4 @@ int main() {
     }
 
     return 0;
-}
+} 
