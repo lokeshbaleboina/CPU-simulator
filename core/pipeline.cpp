@@ -76,16 +76,39 @@ void Pipeline::decode() {
 }
 
 void Pipeline::execute() {
+
     next_EX_MEM = ID_EX;
 
     if (!ID_EX.valid) return;
 
+    int op1 = ID_EX.op1;
+    int op2 = ID_EX.op2;
+
+    // 🔥 Forwarding from EX/MEM stage
+    if (EX_MEM.valid && EX_MEM.dest != -1) {
+        if (EX_MEM.dest == ID_EX.inst.rs1)
+            op1 = EX_MEM.result;
+
+        if (EX_MEM.dest == ID_EX.inst.rs2)
+            op2 = EX_MEM.result;
+    }
+
+    // 🔥 Forwarding from MEM/WB stage
+    if (MEM_WB.valid && MEM_WB.dest != -1) {
+        if (MEM_WB.dest == ID_EX.inst.rs1)
+            op1 = MEM_WB.result;
+
+        if (MEM_WB.dest == ID_EX.inst.rs2)
+            op2 = MEM_WB.result;
+    }
+
+    // ALU operation
     switch (ID_EX.inst.type) {
         case ADD:
-            next_EX_MEM.result = ID_EX.op1 + ID_EX.op2;
+            next_EX_MEM.result = op1 + op2;
             break;
         case SUB:
-            next_EX_MEM.result = ID_EX.op1 - ID_EX.op2;
+            next_EX_MEM.result = op1 - op2;
             break;
         default:
             break;
