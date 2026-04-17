@@ -39,10 +39,37 @@ void Pipeline::fetch() {
 }
 
 void Pipeline::decode() {
+
+    // Default: pass instruction forward
     next_ID_EX = IF_ID;
 
     if (!IF_ID.valid) return;
 
+    // 🔥 Check RAW hazard with previous instruction
+    if (ID_EX.valid) {
+
+        int prev_dest = ID_EX.dest;
+
+        if (prev_dest != -1 &&
+            (prev_dest == IF_ID.inst.rs1 ||
+             prev_dest == IF_ID.inst.rs2)) {
+
+            // 🚨 Hazard detected
+
+            // Insert bubble into EX stage
+            next_ID_EX.valid = false;
+
+            // Stall IF stage (freeze instruction)
+            next_IF_ID = IF_ID;
+
+            // Undo PC increment
+            pc--;
+
+            return;
+        }
+    }
+
+    // Normal decode
     next_ID_EX.op1 = regFile.read(IF_ID.inst.rs1);
     next_ID_EX.op2 = regFile.read(IF_ID.inst.rs2);
     next_ID_EX.dest = IF_ID.inst.rd;
