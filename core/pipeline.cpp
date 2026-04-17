@@ -1,26 +1,27 @@
 #include "pipeline.h"
+#include <iostream>
 
-// Constructor
 Pipeline::Pipeline(std::vector<Instruction> prog)
     : program(prog) {}
 
+// ---------------- STEP ----------------
+
 void Pipeline::step() {
 
-
-    // Reset next state (VERY IMPORTANT)
+    // reset next state
     next_IF_ID = {};
     next_ID_EX = {};
     next_EX_MEM = {};
     next_MEM_WB = {};
 
-    // Compute next state (IMPORTANT: reverse order)
+    // reverse order
     writeback();
     memory();
     execute();
     decode();
     fetch();
 
-    // Commit (simulate clock edge)
+    // commit (clock edge)
     IF_ID = next_IF_ID;
     ID_EX = next_ID_EX;
     EX_MEM = next_EX_MEM;
@@ -29,42 +30,64 @@ void Pipeline::step() {
 
 // ---------------- STAGES ----------------
 
-// IF stage
 void Pipeline::fetch() {
     if (pc < program.size()) {
         next_IF_ID.inst = program[pc];
         next_IF_ID.valid = true;
         pc++;
-    } else {
-        next_IF_ID.valid = false;
     }
 }
 
-// ID stage
 void Pipeline::decode() {
     next_ID_EX = IF_ID;
+
+    if (!IF_ID.valid) return;
+
+    next_ID_EX.op1 = regFile.read(IF_ID.inst.rs1);
+    next_ID_EX.op2 = regFile.read(IF_ID.inst.rs2);
+    next_ID_EX.dest = IF_ID.inst.rd;
 }
 
-// EX stage
 void Pipeline::execute() {
     next_EX_MEM = ID_EX;
+
+    if (!ID_EX.valid) return;
+
+    switch (ID_EX.inst.type) {
+        case ADD:
+            next_EX_MEM.result = ID_EX.op1 + ID_EX.op2;
+            break;
+        case SUB:
+            next_EX_MEM.result = ID_EX.op1 - ID_EX.op2;
+            break;
+        default:
+            break;
+    }
 }
 
-// MEM stage
 void Pipeline::memory() {
     next_MEM_WB = EX_MEM;
 }
 
-// WB stage
 void Pipeline::writeback() {
-    // nothing yet
+    if (!MEM_WB.valid) return;
+
+    regFile.write(MEM_WB.dest, MEM_WB.result);
 }
 
-// Check if simulation finished
+// ---------------- UTIL ----------------
+
 bool Pipeline::isDone() const {
     return pc >= program.size() &&
            !IF_ID.valid &&
            !ID_EX.valid &&
            !EX_MEM.valid &&
            !MEM_WB.valid;
+}
+
+void Pipeline::printState() const {
+    std::cout << "IF: " << (IF_ID.valid ? "INST" : "NOP") << " | ";
+    std::cout << "ID: " << (ID_EX.valid ? "INST" : "NOP") << " | ";
+    std::cout << "EX: " << (EX_MEM.valid ? "INST" : "NOP") << " | ";
+    std::cout << "MEM: " << (MEM_WB.valid ? "INST" : "NOP") << "\n";
 }
