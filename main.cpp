@@ -3,9 +3,10 @@
 int main() {
 
     std::vector<Instruction> program = {
-        {ADD, 1, 2, 3},   // R1 = R2 + R3
-        {SUB, 4, 1, 5},   // dependency (wrong for now)
-        {ADD, 6, 1, 4}
+        {ADD, 1, 2, 3},
+        {BRANCH, 5, 1, -1},  // if R1 == 0 → jump to inst 5
+        {ADD, 4, 5, 6},      // should be flushed if taken
+        {ADD, 7, 8, 9},
     };
 
     Pipeline cpu(program);

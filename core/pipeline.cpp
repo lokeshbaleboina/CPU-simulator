@@ -110,6 +110,17 @@ void Pipeline::execute() {
         case SUB:
             next_EX_MEM.result = op1 - op2;
             break;
+        case BRANCH:
+            if (op1 == 0) {
+                // branch taken → fix PC
+                pc = ID_EX.inst.rd;  // use rd as target
+
+                // 🔥 flush pipeline
+                next_IF_ID = {};
+                next_ID_EX = {};
+            }
+            break;
+
         default:
             break;
     }
